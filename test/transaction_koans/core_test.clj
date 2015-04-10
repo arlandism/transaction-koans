@@ -5,10 +5,11 @@
 
 (def project-root (.getCanonicalPath (clojure.java.io/file ".")))
 
-(def db-spec (slurp
-               (clojure.java.io/file (str project-root "/config/database.edn"))))
+(def db-spec (edn/read-string
+               (slurp
+                 (clojure.java.io/file (str project-root "/config/database.edn")))))
 
-(with-db-connection [db-spec ]
+(adapter/with-db-connection [db-conn db-spec]
  (deftest repeatable-read
   (is (= 0 1)))
 
