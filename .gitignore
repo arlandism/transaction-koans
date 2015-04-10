@@ -3,6 +3,7 @@
 /checkouts
 pom.xml
 pom.xml.asc
+config/database.edn
 *.jar
 *.class
 /.lein-*
