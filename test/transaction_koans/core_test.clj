@@ -23,17 +23,21 @@
   (.setTransactionIsolation conn-one java.sql.Connection/TRANSACTION_REPEATABLE_READ)
   (.setTransactionIsolation conn-two java.sql.Connection/TRANSACTION_REPEATABLE_READ) ; fix me
   (.execute (adapter/prepare-statement conn-one "update people set age = 27 where name = 'arlandis'"))
+  ; attach a callback to the second thread so that we can be closer to guaranteeing
+  ; it's attempted a lock grab before the first transaction commits,
+  ; triggering the serializable error
+  (def t2-lock-attempt (promise))
   (def t2 (future
+            (deliver t2-lock-attempt "done")
             (.execute
               (adapter/prepare-statement
                 conn-two
                 "update people set age = 25 where name = 'arlandis'"))))
-  ; this is currently non-deterministic since we can't guarantee the second, blocking transaction has finished
-  ; before the first transaction commits
+  @t2-lock-attempt ; block for t2
   (.commit conn-one)
-  (.commit conn-two)
   (try
     @t2
+    (.commit conn-two)
     (catch Exception e)
     (finally
       (.close conn-one)
