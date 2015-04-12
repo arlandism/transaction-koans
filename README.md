@@ -22,6 +22,7 @@ lein test
 ## Roadmap
 - Support more databases
 - Support testing things besides isolation levels
+- Use some autorunner to make it more like other koans
 
 ## License
 
