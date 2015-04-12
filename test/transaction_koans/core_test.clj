@@ -9,15 +9,33 @@
                (slurp
                  (clojure.java.io/file (str project-root "/config/database.edn")))))
 
-(adapter/with-db-connection [db-conn db-spec]
- (deftest repeatable-read
-  (is (= 0 1)))
+(def conn-one (adapter/get-connection db-spec))
+(def conn-two (adapter/get-connection db-spec))
 
-(deftest serializable
-  (is (= 1 2)))
+(defn age-of-person [person]
+  (:age (first (adapter/query
+                 db-spec
+                 ["select age from people where name = ?" person]))))
 
-(deftest read-committed
-  (is (= "seven" "eight")))
-
-(deftest read-uncommited
-  (is (= "nine" 10))))
+(testing "repeatable-read is handy, but sometimes we don't care about serialization"
+  (.setAutoCommit conn-one false)
+  (.setAutoCommit conn-two false)
+  (.setTransactionIsolation conn-one java.sql.Connection/TRANSACTION_REPEATABLE_READ)
+  (.setTransactionIsolation conn-two java.sql.Connection/TRANSACTION_REPEATABLE_READ) ; fix me
+  (.execute (adapter/prepare-statement conn-one "update people set age = 27 where name = 'arlandis'"))
+  (def t2 (future
+            (.execute
+              (adapter/prepare-statement
+                conn-two
+                "update people set age = 25 where name = 'arlandis'"))))
+  ; this is currently non-deterministic since we can't guarantee the second, blocking transaction has finished
+  ; before the first transaction commits
+  (.commit conn-one)
+  (.commit conn-two)
+  (try
+    @t2
+    (catch Exception e)
+    (finally
+      (.close conn-one)
+      (.close conn-two)
+      (is (= 25 (age-of-person "arlandis"))))))
